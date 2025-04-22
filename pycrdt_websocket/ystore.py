@@ -35,7 +35,8 @@ class BaseYStore(ABC):
 
     @abstractmethod
     def __init__(
-        self, path: str,
+        self,
+        path: str,
         metadata_callback: Callable[[], Awaitable[bytes] | bytes] | None = None,
         log: Logger | None = None,
     ): ...

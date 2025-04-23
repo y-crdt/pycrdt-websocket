@@ -48,11 +48,12 @@ jobs:
           extra-specs: python=${{ matrix.python-version }}
       - name: Install dependencies
         run: |
-          pip install .[test]
+          pip install git+https://github.com/y-crdt/pycrdt-store.git#egg=pycrdt_store
+          pip install ".[test]"
           cd tests; npm install
       - name: Check types
         run: |
-          mypy pycrdt_websocket tests
+          mypy src tests
       - name: Run tests
         run: |
           pytest -v --color=yes --timeout=60

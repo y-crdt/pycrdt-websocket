@@ -30,7 +30,7 @@ from pycrdt import (
 )
 
 from .websocket import Websocket
-from .ystore import BaseYStore
+from pycrdt.store import BaseYStore
 from .yutils import put_updates
 
 

@@ -1,7 +1,7 @@
 import pytest
 from anyio import sleep
 
-from pycrdt_websocket import exception_logger
+from pycrdt.websocket import exception_logger
 
 pytestmark = pytest.mark.anyio
 

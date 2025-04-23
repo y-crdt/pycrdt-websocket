@@ -4,8 +4,8 @@ from anyio.abc import TaskStatus
 from pycrdt import Map
 from utils import Websocket
 
-from pycrdt_websocket import exception_logger
-from pycrdt_websocket.yroom import YRoom
+from pycrdt.websocket import exception_logger
+from pycrdt.websocket.yroom import YRoom
 
 pytestmark = pytest.mark.anyio
 

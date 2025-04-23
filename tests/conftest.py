@@ -11,7 +11,7 @@ from pycrdt import Doc
 from sniffio import current_async_library
 from utils import StartStopContextManager, Websocket, connected_websockets, ensure_server_running
 
-from pycrdt_websocket import ASGIServer, WebsocketProvider, WebsocketServer, YRoom
+from pycrdt.websocket import ASGIServer, WebsocketProvider, WebsocketServer, YRoom
 
 
 @pytest.fixture(params=("websocket_server_context_manager", "websocket_server_start_stop"))

@@ -8,7 +8,7 @@ dynamic = ["version"]
 description = "WebSocket connector for pycrdt"
 license = { file = "LICENSE" }
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.9"
 authors = [
     { name = "David Brochart", email = "david.brochart@gmail.com" },
 ]
@@ -21,15 +21,14 @@ classifiers = [
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python",
-    "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
     "anyio >=3.6.2,<5",
-    "sqlite-anyio >=0.2.3,<0.3.0",
     "pycrdt >=0.12.13,<0.13.0",
 ]
 
@@ -60,13 +59,11 @@ Issues = "https://github.com/y-crdt/pycrdt-websocket/issues"
 Pypi = "https://pypi.org/project/pycrdt-websocket"
 
 [tool.hatch.version]
-path = "pycrdt_websocket/__init__.py"
+path = "src/pycrdt/websocket/__init__.py"
 
-[tool.hatch.build.targets.sdist]
-include = [
-    "/pycrdt_websocket",
-    "/tests",
-]
+[tool.hatch.build.targets.wheel]
+ignore-vcs = true
+packages = ["src/pycrdt"]
 
 [tool.ruff]
 line-length = 99

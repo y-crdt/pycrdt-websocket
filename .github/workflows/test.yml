@@ -48,7 +48,6 @@ jobs:
           extra-specs: python=${{ matrix.python-version }}
       - name: Install dependencies
         run: |
-          pip install git+https://github.com/y-crdt/pycrdt-store.git#egg=pycrdt_store
           pip install ".[test]"
           cd tests; npm install
       - name: Check types

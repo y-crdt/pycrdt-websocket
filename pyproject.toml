@@ -30,6 +30,7 @@ classifiers = [
 dependencies = [
     "anyio >=3.6.2,<5",
     "pycrdt >=0.12.13,<0.13.0",
+    "pycrdt-store >=0.1.0,<0.2.0",
 ]
 
 [project.optional-dependencies]

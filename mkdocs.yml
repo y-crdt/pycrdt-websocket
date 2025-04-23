@@ -1,6 +1,6 @@
 site_name: pycrdt-websocket
 site_description: Async WebSocket connector for pycrdt
-repo_url: https://github.com/jupyter-server/pycrdt-websocket
+repo_url: https://github.com/y-crdt/pycrdt-websocket
 
 theme:
   name: "material"

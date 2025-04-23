@@ -2,14 +2,14 @@
 
 Pycrdt-websocket is an async WebSocket connector for pycrdt.
 
-[![Build Status](https://github.com/jupyter-server/pycrdt-websocket/workflows/CI/badge.svg)](https://github.com/jupyter-server/pycrdt-websocket/actions)
+[![Build Status](https://github.com/y-crdt/pycrdt-websocket/workflows/CI/badge.svg)](https://github.com/y-crdt/pycrdt-websocket/actions)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
 ---
 
-**Documentation**: <a href="https://jupyter-server.github.io/pycrdt-websocket" target="_blank">https://jupyter-server.github.io/pycrdt-websocket</a>
+**Documentation**: <a href="https://y-crdt.github.io/pycrdt-websocket" target="_blank">https://y-crdt.github.io/pycrdt-websocket</a>
 
-**Source Code**: <a href="https://github.com/jupyter-server/pycrdt-websocket" target="_blank">https://github.com/jupyter-server/pycrdt-websocket</a>
+**Source Code**: <a href="https://github.com/y-crdt/pycrdt-websocket" target="_blank">https://github.com/y-crdt/pycrdt-websocket</a>
 
 ---
 

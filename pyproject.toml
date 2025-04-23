@@ -54,9 +54,9 @@ django = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/jupyter-server/pycrdt-websocket"
-Source = "https://github.com/jupyter-server/pycrdt-websocket"
-Issues = "https://github.com/jupyter-server/pycrdt-websocket/issues"
+Homepage = "https://github.com/y-crdt/pycrdt-websocket"
+Source = "https://github.com/y-crdt/pycrdt-websocket"
+Issues = "https://github.com/y-crdt/pycrdt-websocket/issues"
 Pypi = "https://pypi.org/project/pycrdt-websocket"
 
 [tool.hatch.version]

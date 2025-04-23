@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+from collections.abc import Awaitable
 from contextlib import AsyncExitStack
 from functools import partial
 from inspect import isawaitable
 from logging import Logger, getLogger
-from typing import Any, Awaitable, Callable
+from typing import Any, Callable
 
 from anyio import (
     TASK_STATUS_IGNORED,
@@ -15,6 +16,7 @@ from anyio import (
 )
 from anyio.abc import TaskGroup, TaskStatus
 from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
+
 from pycrdt import (
     Awareness,
     Doc,
@@ -28,9 +30,9 @@ from pycrdt import (
     is_awareness_disconnect_message,
     read_message,
 )
+from pycrdt.store import BaseYStore
 
 from .websocket import Websocket
-from pycrdt.store import BaseYStore
 from .yutils import put_updates
 
 

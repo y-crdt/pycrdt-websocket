@@ -4,6 +4,7 @@ from logging import getLogger
 from typing import TypedDict
 
 from channels.generic.websocket import AsyncWebsocketConsumer  # type: ignore[import-not-found]
+
 from pycrdt import (
     Doc,
     YMessageType,

@@ -1,6 +1,5 @@
-from pathlib import Path
-
 from anyio.streams.memory import MemoryObjectSendStream
+
 from pycrdt import TransactionEvent
 
 

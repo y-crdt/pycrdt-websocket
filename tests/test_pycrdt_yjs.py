@@ -4,6 +4,7 @@ from functools import partial
 
 import pytest
 from anyio import Event, fail_after
+
 from pycrdt import Array, Map
 
 pytestmark = pytest.mark.anyio

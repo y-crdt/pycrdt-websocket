@@ -46,9 +46,11 @@ jobs:
           environment-file: environment-dev.yml
           environment-name: pycrdt-websocket
           extra-specs: python=${{ matrix.python-version }}
+      - name: Ensure pip >= v25.1
+        run: python -m pip install "pip >= 25.1"
       - name: Install dependencies
         run: |
-          pip install ".[test]"
+          pip install --group test .
           cd tests; npm install
       - name: Check types
         run: |

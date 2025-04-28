@@ -1,5 +1,6 @@
 import pytest
 from anyio import sleep
+
 from pycrdt import Map
 
 pytestmark = pytest.mark.anyio

@@ -7,11 +7,11 @@ import pytest
 from anyio import Event, create_task_group
 from httpx_ws import aconnect_ws
 from hypercorn import Config
-from pycrdt import Doc
 from sniffio import current_async_library
 from utils import StartStopContextManager, Websocket, connected_websockets, ensure_server_running
 
-from pycrdt_websocket import ASGIServer, WebsocketProvider, WebsocketServer, YRoom
+from pycrdt import Doc
+from pycrdt.websocket import ASGIServer, WebsocketProvider, WebsocketServer, YRoom
 
 
 @pytest.fixture(params=("websocket_server_context_manager", "websocket_server_start_stop"))

@@ -34,6 +34,11 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+django = [
+    "channels",
+]
+
+[dependency-groups]
 test = [
     "mypy !=1.10.0,!=1.10.1",  # see https://github.com/python/mypy/issues/17166
     "pre-commit",
@@ -48,9 +53,6 @@ docs = [
     "mkdocs",
     "mkdocs-material",
     "mkdocstrings-python",
-]
-django = [
-    "channels",
 ]
 
 [project.urls]

@@ -41,6 +41,7 @@ class YRoom:
     ydoc: Doc
     ystore: BaseYStore | None
     ready_event: Event
+    ready: bool
     _on_message: Callable[[bytes], Awaitable[bool] | bool] | None
     _update_send_stream: MemoryObjectSendStream
     _update_receive_stream: MemoryObjectReceiveStream

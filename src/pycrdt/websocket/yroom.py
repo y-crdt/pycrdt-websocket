@@ -41,7 +41,6 @@ class YRoom:
     ydoc: Doc
     ystore: BaseYStore | None
     ready_event: Event
-    ready: bool
     _on_message: Callable[[bytes], Awaitable[bool] | bool] | None
     _update_send_stream: MemoryObjectSendStream
     _update_receive_stream: MemoryObjectReceiveStream
@@ -84,7 +83,7 @@ class YRoom:
         """
         self.ydoc = Doc() if ydoc is None else ydoc
         self.ready_event = Event()
-        self.ready = ready
+        self.ready: bool = ready
         self.ystore = ystore
         self.log = log or getLogger(__name__)
         self.awareness = Awareness(self.ydoc)

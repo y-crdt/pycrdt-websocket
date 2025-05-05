@@ -48,6 +48,7 @@ test = [
     "hypercorn >=0.16.0",
     "trio >=0.25.0",
     "sniffio",
+    "channels",
 ]
 docs = [
     "mkdocs",

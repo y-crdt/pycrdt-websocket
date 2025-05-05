@@ -3,9 +3,10 @@ from __future__ import annotations
 from logging import getLogger
 from typing import TypedDict
 
-from channels.generic.websocket import AsyncWebsocketConsumer  # type: ignore[import-not-found]
+from channels.generic.websocket import AsyncWebsocketConsumer  # type: ignore[import-untyped]
 
 from pycrdt import (
+    Channel,
     Doc,
     YMessageType,
     YSyncMessageType,
@@ -13,12 +14,10 @@ from pycrdt import (
     handle_sync_message,
 )
 
-from .websocket import Websocket
-
 logger = getLogger(__name__)
 
 
-class _WebsocketShim(Websocket):
+class _WebsocketShim(Channel):
     def __init__(self, path, send_func) -> None:
         self._path = path
         self._send_func = send_func

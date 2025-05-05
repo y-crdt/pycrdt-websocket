@@ -5,7 +5,7 @@ from contextlib import AsyncExitStack
 from functools import partial
 from inspect import isawaitable
 from logging import Logger, getLogger
-from typing import Any, Callable
+from typing import Any, Callable, Protocol
 
 from anyio import (
     TASK_STATUS_IGNORED,
@@ -19,7 +19,9 @@ from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStre
 
 from pycrdt import (
     Awareness,
+    Channel,
     Doc,
+    Provider,
     Subscription,
     YMessageType,
     YSyncMessageType,
@@ -32,12 +34,19 @@ from pycrdt import (
 )
 from pycrdt.store import BaseYStore
 
-from .websocket import Websocket
 from .yutils import put_updates
 
 
+class ProviderFactory(Protocol):
+    def __call__(
+        self,
+        path: str,
+        doc: Doc,
+    ) -> Provider: ...
+
+
 class YRoom:
-    clients: set[Websocket]
+    clients: set[Channel]
     ydoc: Doc
     ystore: BaseYStore | None
     ready_event: Event
@@ -57,6 +66,7 @@ class YRoom:
         exception_handler: Callable[[Exception, Logger], bool] | None = None,
         log: Logger | None = None,
         ydoc: Doc | None = None,
+        provider_factory: ProviderFactory | None = None,
     ):
         """Initialize the object.
 
@@ -76,6 +86,8 @@ class YRoom:
         Arguments:
             ready: Whether the internal YDoc is ready to be synchronized right away.
             ystore: An optional store in which to persist document updates.
+            provider_factory: An optional provider factory used to synchronize the room with
+                an external document.
             exception_handler: An optional callback to call when an exception is raised, that
                 returns True if the exception was handled.
             log: An optional logger.
@@ -85,6 +97,7 @@ class YRoom:
         self.ready_event = Event()
         self.ready = ready
         self.ystore = ystore
+        self.provider_factory = provider_factory
         self.log = log or getLogger(__name__)
         self.awareness = Awareness(self.ydoc)
         self.awareness.observe(self.send_server_awareness)
@@ -92,6 +105,7 @@ class YRoom:
         self._on_message = None
         self.exception_handler = exception_handler
         self._stopped = Event()
+        self._provider_stop_event = Event()
 
     @property
     def _start_lock(self) -> Lock:
@@ -207,16 +221,7 @@ class YRoom:
             task_status: The status to set when the task has started.
         """
         if from_context_manager:
-            task_status.started()
-            self.started.set()
-            self._update_send_stream, self._update_receive_stream = create_memory_object_stream(
-                max_buffer_size=65536
-            )
-            assert self._task_group is not None
-            self._task_group.start_soon(self._stopped.wait)
-            self._task_group.start_soon(self._watch_ready)
-            self._task_group.start_soon(self._broadcast_updates)
-            self._task_group.start_soon(self.awareness.start)
+            await self._start(task_status)
             return
 
         async with self._start_lock:
@@ -226,20 +231,36 @@ class YRoom:
             while True:
                 try:
                     async with create_task_group() as self._task_group:
-                        if not self.started.is_set():
-                            task_status.started()
-                            self.started.set()
-                        self._update_send_stream, self._update_receive_stream = (
-                            create_memory_object_stream(max_buffer_size=65536)
-                        )
-                        self._task_group.start_soon(self._stopped.wait)
-                        self._task_group.start_soon(self._watch_ready)
-                        self._task_group.start_soon(self._broadcast_updates)
-                        self._task_group.start_soon(self.awareness.start)
+                        await self._start(task_status)
                     return
                 except Exception as exception:
                     await self.awareness.stop()
+                    self._provider_stop_event.set()
+                    self._provider_stop_event = Event()
                     self._handle_exception(exception)
+
+    async def _start(
+        self,
+        task_status: TaskStatus[None],
+    ):
+        if not self.started.is_set():
+            task_status.started()
+            self.started.set()
+        self._update_send_stream, self._update_receive_stream = create_memory_object_stream(
+            max_buffer_size=65536
+        )
+        assert self._task_group is not None
+        self._task_group.start_soon(self._stopped.wait)
+        self._task_group.start_soon(self._watch_ready)
+        self._task_group.start_soon(self._broadcast_updates)
+        await self._task_group.start(self.awareness.start)
+        self._task_group.start_soon(self._run_provider)
+
+    async def _run_provider(self):
+        if self.provider_factory is not None:
+            provider_factory = self.provider_factory(doc=self.ydoc, log=self.log)
+            async with provider_factory:
+                await self._provider_stop_event.wait()
 
     async def stop(self) -> None:
         """Stop the room."""
@@ -252,23 +273,23 @@ class YRoom:
         if self._subscription is not None:
             self.ydoc.unobserve(self._subscription)
 
-    async def serve(self, websocket: Websocket):
+    async def serve(self, channel: Channel):
         """Serve a client.
 
         Arguments:
-            websocket: The WebSocket through which to serve the client.
+            channel: The WebSocket through which to serve the client.
         """
         try:
             async with create_task_group() as tg:
-                self.clients.add(websocket)
+                self.clients.add(channel)
                 sync_message = create_sync_message(self.ydoc)
                 self.log.debug(
                     "Sending %s message to endpoint: %s",
                     YSyncMessageType.SYNC_STEP1.name,
-                    websocket.path,
+                    channel.path,
                 )
-                await websocket.send(sync_message)
-                async for message in websocket:
+                await channel.send(sync_message)
+                async for message in channel:
                     # filter messages (e.g. awareness)
                     skip = False
                     if self.on_message:
@@ -284,23 +305,23 @@ class YRoom:
                         self.log.debug(
                             "Received %s message from endpoint: %s",
                             YSyncMessageType(message[1]).name,
-                            websocket.path,
+                            channel.path,
                         )
                         reply = handle_sync_message(message[1:], self.ydoc)
                         if reply is not None:
                             self.log.debug(
                                 "Sending %s message to endpoint: %s",
                                 YSyncMessageType.SYNC_STEP2.name,
-                                websocket.path,
+                                channel.path,
                             )
-                            tg.start_soon(websocket.send, reply)
+                            tg.start_soon(channel.send, reply)
                     elif message_type == YMessageType.AWARENESS:
                         # forward awareness messages from this client to all clients,
                         # including itself, because it's used to keep the connection alive
                         self.log.debug(
                             "Received %s message from endpoint: %s",
                             YMessageType.AWARENESS.name,
-                            websocket.path,
+                            channel.path,
                         )
 
                         # Check if the message is a client  awareness disconnect.
@@ -310,13 +331,13 @@ class YRoom:
                         # disconnection from the client. This avoid an error when trying
                         # to send the message to the disconnected client.
                         for client in self.clients:
-                            if disconnection and client == websocket:
+                            if disconnection and client == channel:
                                 continue
 
                             self.log.debug(
                                 "Sending Y awareness from client with endpoint "
                                 "%s to client with endpoint: %s",
-                                websocket.path,
+                                channel.path,
                                 client.path,
                             )
                             tg.start_soon(client.send, message)
@@ -326,7 +347,7 @@ class YRoom:
             self._handle_exception(exception)
         finally:
             # remove this client
-            self.clients.remove(websocket)
+            self.clients.remove(channel)
 
     def send_server_awareness(self, type: str, changes: tuple[dict[str, Any], Any]) -> None:
         """

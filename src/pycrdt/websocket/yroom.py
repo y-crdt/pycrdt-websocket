@@ -41,7 +41,7 @@ class YRoom:
     ydoc: Doc
     ystore: BaseYStore | None
     ready_event: Event
-    ready: bool  # type: ignore[no-redef]
+    ready: bool
     _on_message: Callable[[bytes], Awaitable[bool] | bool] | None
     _update_send_stream: MemoryObjectSendStream
     _update_receive_stream: MemoryObjectReceiveStream
@@ -107,7 +107,7 @@ class YRoom:
             self._started = Event()
         return self._started
 
-    @property
+    @property  # type: ignore[no-redef]
     def ready(self) -> bool:
         """
         Returns:

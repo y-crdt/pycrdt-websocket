@@ -79,15 +79,24 @@ class ASGIServer:
         receive: Callable[[], Awaitable[dict[str, Any]]],
         send: Callable[[dict[str, Any]], Awaitable[None]],
     ):
-        msg = await receive()
-        if msg["type"] == "websocket.connect":
-            if self._on_connect is not None:
-                close = self._on_connect(msg, scope)
-                if isawaitable(close):
-                    close = await close
-                if close:
+        if scope["type"] == "lifespan":
+            while True:
+                message = await receive()
+                if message["type"] == "lifespan.startup":
+                    await send({"type": "lifespan.startup.complete"})
+                elif message["type"] == "lifespan.shutdown":
+                    await send({"type": "lifespan.shutdown.complete"})
                     return
+        elif scope["type"] == "websocket":
+            msg = await receive()
+            if msg["type"] == "websocket.connect":
+                if self._on_connect is not None:
+                    close = self._on_connect(msg, scope)
+                    if isawaitable(close):
+                        close = await close
+                    if close:
+                        return
 
-            await send({"type": "websocket.accept"})
-            websocket = ASGIWebsocket(receive, send, scope["path"], self._on_disconnect)
-            await self._websocket_server.serve(websocket)
+                await send({"type": "websocket.accept"})
+                websocket = ASGIWebsocket(receive, send, scope["path"], self._on_disconnect)
+                await self._websocket_server.serve(websocket)

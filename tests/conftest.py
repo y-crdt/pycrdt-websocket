@@ -41,33 +41,30 @@ def ystore_api(request):
 
 @pytest.fixture
 async def yws_server(request, unused_tcp_port, websocket_server_api):
-    try:
-        async with create_task_group() as tg:
-            try:
-                kwargs = request.param
-            except AttributeError:
-                kwargs = {}
-            websocket_server = WebsocketServer(**kwargs)
-            app = ASGIServer(websocket_server)
-            config = Config()
-            config.bind = [f"localhost:{unused_tcp_port}"]
-            shutdown_event = Event()
-            if websocket_server_api == "websocket_server_start_stop":
-                websocket_server = StartStopContextManager(websocket_server, tg)
-            if current_async_library() == "trio":
-                from hypercorn.trio import serve
-            else:
-                from hypercorn.asyncio import serve
-            async with websocket_server as websocket_server:
-                tg.start_soon(
-                    partial(serve, app, config, shutdown_trigger=shutdown_event.wait, mode="asgi")
-                )
-                await ensure_server_running("localhost", unused_tcp_port)
-                pytest.port = unused_tcp_port
-                yield unused_tcp_port, websocket_server
-                shutdown_event.set()
-    except Exception:
-        pass
+    async with create_task_group() as tg:
+        try:
+            kwargs = request.param
+        except AttributeError:
+            kwargs = {}
+        websocket_server = WebsocketServer(**kwargs)
+        app = ASGIServer(websocket_server)
+        config = Config()
+        config.bind = [f"localhost:{unused_tcp_port}"]
+        shutdown_event = Event()
+        if websocket_server_api == "websocket_server_start_stop":
+            websocket_server = StartStopContextManager(websocket_server, tg)
+        if current_async_library() == "trio":
+            from hypercorn.trio import serve
+        else:
+            from hypercorn.asyncio import serve
+        async with websocket_server as websocket_server:
+            tg.start_soon(
+                partial(serve, app, config, shutdown_trigger=shutdown_event.wait, mode="asgi")
+            )
+            await ensure_server_running("localhost", unused_tcp_port)
+            pytest.port = unused_tcp_port
+            yield unused_tcp_port, websocket_server
+            shutdown_event.set()
 
 
 @pytest.fixture

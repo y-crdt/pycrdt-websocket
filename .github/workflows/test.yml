@@ -58,6 +58,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install --group test .
+          pip install git+https://github.com/y-crdt/pycrdt --force-reinstall
           cd tests; npm install
       - name: Check types
         run: |

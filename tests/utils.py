@@ -138,26 +138,18 @@ async def create_yws_provider(
     websocket_provider_connect="real_websocket",
     ydoc=None,
 ):
-    print("create_yws_provider")
     ydoc = Doc() if ydoc is None else ydoc
     if websocket_provider_connect == "real_websocket":
         server_websocket = None
         connect = aconnect_ws(f"http://localhost:{port}/{room_name}")
     else:
         server_websocket, connect = connected_websockets()
-    try:
-        async with connect as websocket:
-            websocket_provider = Provider(ydoc, Websocket(websocket, room_name))
-            if websocket_provider_api == "websocket_provider_start_stop":
-                websocket_provider = StartStopContextManager(websocket_provider)
-            async with websocket_provider as websocket_provider:
-                yield ydoc, server_websocket
-                print("done0")
-            print("done1")
-        print("done2")
-    except BaseException as e:
-        print(f"create_yws_provider {e=}")
-    print("done3")
+    async with connect as websocket:
+        websocket_provider = Provider(ydoc, Websocket(websocket, room_name))
+        if websocket_provider_api == "websocket_provider_start_stop":
+            websocket_provider = StartStopContextManager(websocket_provider)
+        async with websocket_provider as websocket_provider:
+            yield ydoc, server_websocket
 
 
 @asynccontextmanager

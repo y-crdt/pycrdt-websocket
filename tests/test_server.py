@@ -28,7 +28,6 @@ async def test_server_provider():
     # the provider factory that synchronizes each parallel server with
     # the sync_server
     def provider_factory(path, doc, log):
-        print("provider_factory")
         return create_yws_provider(sync_port, path, ydoc=doc)
 
     # the parallel servers

@@ -138,6 +138,7 @@ async def create_yws_provider(
     websocket_provider_api="websocket_provider_context_manager",
     websocket_provider_connect="real_websocket",
     ydoc=None,
+    log=None,
 ):
     ydoc = Doc() if ydoc is None else ydoc
     if websocket_provider_connect == "real_websocket":
@@ -147,7 +148,7 @@ async def create_yws_provider(
         server_websocket, connect = connected_websockets()
     try:
         async with connect as websocket:
-            websocket_provider = Provider(ydoc, Websocket(websocket, room_name))
+            websocket_provider = Provider(ydoc, Websocket(websocket, room_name), log)
             if websocket_provider_api == "websocket_provider_start_stop":
                 websocket_provider = StartStopContextManager(websocket_provider)
             async with websocket_provider as websocket_provider:

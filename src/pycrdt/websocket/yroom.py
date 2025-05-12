@@ -40,8 +40,9 @@ from .yutils import put_updates
 class ProviderFactory(Protocol):
     def __call__(
         self,
-        path: str,
-        doc: Doc,
+        doc: Doc | None = None,
+        log: Logger | None = None,
+        path: str | None = None,
     ) -> Provider: ...
 
 
@@ -259,8 +260,11 @@ class YRoom:
     async def _run_provider(self):
         if self.provider_factory is not None:
             provider_factory = self.provider_factory(doc=self.ydoc, log=self.log)
-            async with provider_factory:
-                await self._provider_stop_event.wait()
+            try:
+                async with provider_factory:
+                    await self._provider_stop_event.wait()
+            except Exception as exception:
+                self._handle_exception(exception)
 
     async def stop(self) -> None:
         """Stop the room."""

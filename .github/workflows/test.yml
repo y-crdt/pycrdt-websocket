@@ -28,24 +28,30 @@ jobs:
           echo "    pre-commit run --all-files --hook-stage=manual"
 
   test:
-    name: Run tests on ${{ matrix.os }}
+    name: Run tests on ${{ matrix.os }} python-${{ matrix.python-version }}
     runs-on: ${{ matrix.os }}
 
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version:
+          - '3.9'
+          - '3.10'
+          - '3.11'
+          - '3.12'
+          - '3.13'
+          - 'pypy3.9'
+          - 'pypy3.10'
     defaults:
       run:
         shell: bash -l {0}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      - name: Install mamba
-        uses: mamba-org/setup-micromamba@v1
+      - uses: actions/setup-node@v4
+      - uses: actions/setup-python@v5
         with:
-          environment-file: environment-dev.yml
-          environment-name: pycrdt-websocket
-          extra-specs: python=${{ matrix.python-version }}
+          python-version: ${{ matrix.python-version }}
       - name: Ensure pip >= v25.1
         run: python -m pip install "pip >= 25.1"
       - name: Install dependencies

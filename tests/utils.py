@@ -11,6 +11,7 @@ from anyio import (
     connect_tcp,
     create_memory_object_stream,
     create_task_group,
+    get_cancelled_exc_class,
 )
 from httpx_ws import aconnect_ws
 from hypercorn import Config
@@ -144,12 +145,15 @@ async def create_yws_provider(
         connect = aconnect_ws(f"http://localhost:{port}/{room_name}")
     else:
         server_websocket, connect = connected_websockets()
-    async with connect as websocket:
-        websocket_provider = Provider(ydoc, Websocket(websocket, room_name))
-        if websocket_provider_api == "websocket_provider_start_stop":
-            websocket_provider = StartStopContextManager(websocket_provider)
-        async with websocket_provider as websocket_provider:
-            yield ydoc, server_websocket
+    try:
+        async with connect as websocket:
+            websocket_provider = Provider(ydoc, Websocket(websocket, room_name))
+            if websocket_provider_api == "websocket_provider_start_stop":
+                websocket_provider = StartStopContextManager(websocket_provider)
+            async with websocket_provider as websocket_provider:
+                yield ydoc, server_websocket
+    except get_cancelled_exc_class():
+        pass
 
 
 @asynccontextmanager

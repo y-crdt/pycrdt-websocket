@@ -47,7 +47,6 @@ async def test_server_provider():
         client1 as client1,
         client2 as client2,
     ):
-        pass
         doc1, _ = client1
         doc2, _ = client2
         text1 = doc1.get("text", type=Text)

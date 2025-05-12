@@ -64,7 +64,7 @@ class Websocket:
 
 
 class ClientWebsocket:
-    def __init__(self, server_websocket: "ServerWebsocket"):
+    def __init__(self, server_websocket: ServerWebsocket):
         self.server_websocket = server_websocket
         self.send_stream, self.receive_stream = create_memory_object_stream[bytes](65536)
 

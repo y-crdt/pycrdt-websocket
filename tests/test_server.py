@@ -1,5 +1,5 @@
 import pytest
-from anyio import sleep
+from anyio import fail_after, sleep
 from utils import create_yws_provider, create_yws_server, get_unused_tcp_port
 
 from pycrdt import Text
@@ -52,6 +52,9 @@ async def test_server_provider():
         text1 = doc1.get("text", type=Text)
         text2 = doc2.get("text", type=Text)
         text1 += "Hello"
-        await sleep(0.1)
+        with fail_after(1):
+            async with text2.events() as events:
+                async for event in events:
+                    break
 
     assert str(text2) == "Hello"

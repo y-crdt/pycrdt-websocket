@@ -1,8 +1,24 @@
 from __future__ import annotations
 
-from anyio import Lock, connect_tcp, create_memory_object_stream
+from contextlib import AsyncExitStack, asynccontextmanager
+from functools import partial
+from socket import socket
 
-from pycrdt import Array, Doc
+import pytest
+from anyio import (
+    Event,
+    Lock,
+    connect_tcp,
+    create_memory_object_stream,
+    create_task_group,
+    get_cancelled_exc_class,
+)
+from httpx_ws import aconnect_ws
+from hypercorn import Config
+from sniffio import current_async_library
+
+from pycrdt import Array, Doc, Provider
+from pycrdt.websocket import ASGIServer, WebsocketServer
 
 
 class YDocTest:
@@ -21,17 +37,20 @@ class YDocTest:
 
 
 class StartStopContextManager:
-    def __init__(self, service, task_group):
+    def __init__(self, service):
         self._service = service
-        self._task_group = task_group
 
     async def __aenter__(self):
-        await self._task_group.start(self._service.start)
+        async with AsyncExitStack() as exit_stack:
+            self._task_group = await exit_stack.enter_async_context(create_task_group())
+            await self._task_group.start(self._service.start)
+            self._exit_stack = exit_stack.pop_all()
         await self._service.started.wait()
         return self._service
 
     async def __aexit__(self, exc_type, exc_value, exc_tb):
-        await self._service.stop()
+        self._task_group.start_soon(self._service.stop)
+        return await self._exit_stack.__aexit__(exc_type, exc_value, exc_tb)
 
 
 class Websocket:
@@ -110,3 +129,61 @@ async def ensure_server_running(host: str, port: int) -> None:
             pass
         else:
             break
+
+
+@asynccontextmanager
+async def create_yws_provider(
+    port,
+    room_name,
+    websocket_provider_api="websocket_provider_context_manager",
+    websocket_provider_connect="real_websocket",
+    ydoc=None,
+    log=None,
+):
+    ydoc = Doc() if ydoc is None else ydoc
+    if websocket_provider_connect == "real_websocket":
+        server_websocket = None
+        connect = aconnect_ws(f"http://localhost:{port}/{room_name}")
+    else:
+        server_websocket, connect = connected_websockets()
+    try:
+        async with connect as websocket:
+            websocket_provider = Provider(ydoc, Websocket(websocket, room_name), log)
+            if websocket_provider_api == "websocket_provider_start_stop":
+                websocket_provider = StartStopContextManager(websocket_provider)
+            async with websocket_provider as websocket_provider:
+                yield ydoc, server_websocket
+    except get_cancelled_exc_class():
+        pass
+
+
+@asynccontextmanager
+async def create_yws_server(
+    port, websocket_server_api="websocket_server_context_manager", **kwargs
+):
+    async with create_task_group() as tg:
+        websocket_server = WebsocketServer(**kwargs)
+        app = ASGIServer(websocket_server)
+        config = Config()
+        config.bind = [f"localhost:{port}"]
+        shutdown_event = Event()
+        if websocket_server_api == "websocket_server_start_stop":
+            websocket_server = StartStopContextManager(websocket_server)
+        if current_async_library() == "trio":
+            from hypercorn.trio import serve
+        else:
+            from hypercorn.asyncio import serve
+        async with websocket_server as websocket_server:
+            tg.start_soon(
+                partial(serve, app, config, shutdown_trigger=shutdown_event.wait, mode="asgi")
+            )
+            await ensure_server_running("localhost", port)
+            pytest.port = port
+            yield port, websocket_server
+            shutdown_event.set()
+
+
+def get_unused_tcp_port():
+    with socket() as sock:
+        sock.bind(("localhost", 0))
+        return sock.getsockname()[1]

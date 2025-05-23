@@ -8,8 +8,9 @@ from typing import Callable
 from anyio import TASK_STATUS_IGNORED, Event, Lock, create_task_group
 from anyio.abc import TaskGroup, TaskStatus
 
-from .websocket import Websocket
-from .yroom import YRoom
+from pycrdt import Channel
+
+from .yroom import ProviderFactory, YRoom
 
 
 class WebsocketServer:
@@ -28,6 +29,7 @@ class WebsocketServer:
         auto_clean_rooms: bool = True,
         exception_handler: Callable[[Exception, Logger], bool] | None = None,
         log: Logger | None = None,
+        provider_factory: ProviderFactory | None = None,
     ) -> None:
         """Initialize the object.
 
@@ -50,11 +52,14 @@ class WebsocketServer:
             exception_handler: An optional callback to call when an exception is raised, that
                 returns True if the exception was handled.
             log: An optional logger.
+            provider_factory: An optional provider factory used to synchronize the rooms with
+                external documents.
         """
         self.rooms_ready = rooms_ready
         self.auto_clean_rooms = auto_clean_rooms
         self.exception_handler = exception_handler
         self.log = log or getLogger(__name__)
+        self.provider_factory = provider_factory
         self.rooms = {}
         self._stopped = Event()
 
@@ -81,7 +86,14 @@ class WebsocketServer:
             The room with the given name, or a new one if no room with that name was found.
         """
         if name not in self.rooms.keys():
-            self.rooms[name] = YRoom(ready=self.rooms_ready, log=self.log)
+            provider_factory = (
+                partial(self.provider_factory, path=name)
+                if self.provider_factory is not None
+                else None
+            )
+            self.rooms[name] = YRoom(
+                ready=self.rooms_ready, log=self.log, provider_factory=provider_factory
+            )
         room = self.rooms[name]
         await self.start_room(room)
         return room
@@ -144,7 +156,7 @@ class WebsocketServer:
         room = self.rooms.pop(name)
         await room.stop()
 
-    async def serve(self, websocket: Websocket) -> None:
+    async def serve(self, websocket: Channel) -> None:
         """Serve a client through a WebSocket.
 
         Arguments:

@@ -15,7 +15,7 @@ class ASGIWebsocket:
         send: Callable[[dict[str, Any]], Awaitable[None]],
         path: str,
         on_disconnect: Callable[[dict[str, Any]], Awaitable[None] | None] | None = None,
-        query_params: dict[bytes, bytes] | None = None,
+        query_params: dict[str, list[str]] | None = None,
     ):
         self._receive = receive
         self._send = send

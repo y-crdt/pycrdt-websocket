@@ -102,5 +102,7 @@ class ASGIServer:
 
                 await send({"type": "websocket.accept"})
                 query_params = parse_qs(scope["query_string"])
-                websocket = ASGIWebsocket(receive, send, scope["path"], self._on_disconnect, query_params=query_params)
+                websocket = ASGIWebsocket(
+                    receive, send, scope["path"], self._on_disconnect, query_params=query_params
+                )
                 await self._websocket_server.serve(websocket)

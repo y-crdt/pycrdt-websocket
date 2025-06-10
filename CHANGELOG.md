@@ -1,6 +1,4 @@
-# Changes in ypy-websocket {#changelog}
-
-<!-- <START NEW CHANGELOG ENTRY> -->
+# Version history
 
 ## 0.15.5
 
@@ -17,8 +15,6 @@
 ([GitHub contributors page for this release](https://github.com/jupyter-server/pycrdt-websocket/graphs/contributors?from=2025-01-23&to=2025-04-15&type=c))
 
 [@brichet](https://github.com/search?q=repo%3Ajupyter-server%2Fpycrdt-websocket+involves%3Abrichet+updated%3A2025-01-23..2025-04-15&type=Issues) | [@pre-commit-ci](https://github.com/search?q=repo%3Ajupyter-server%2Fpycrdt-websocket+involves%3Apre-commit-ci+updated%3A2025-01-23..2025-04-15&type=Issues)
-
-<!-- <END NEW CHANGELOG ENTRY> -->
 
 ## 0.15.4
 

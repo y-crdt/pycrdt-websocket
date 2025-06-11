@@ -1,5 +1,13 @@
 # Version history
 
+## 0.16.0
+
+- Allow room to sync with provider.
+- Add `log` to `BaseYStore`.
+- Handle ASGI lifespan.
+- Move `test` and `docs` dependencies to dependency groups.
+- Extract out stores to `pycrdt-store`.
+
 ## 0.15.5
 
 ([Full Changelog](https://github.com/jupyter-server/pycrdt-websocket/compare/v0.15.4...8c2285fafc7dbeee92d3d87b40c0f591edee4445))

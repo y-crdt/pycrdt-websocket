@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pycrdt-websocket"
-version = "0.15.5"
+version = "0.16.0"
 description = "WebSocket connector for pycrdt"
 license = { file = "LICENSE" }
 readme = "README.md"

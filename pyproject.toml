@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pycrdt-websocket"
-dynamic = ["version"]
+version = "0.15.5"
 description = "WebSocket connector for pycrdt"
 license = { file = "LICENSE" }
 readme = "README.md"
@@ -61,9 +61,6 @@ Homepage = "https://github.com/y-crdt/pycrdt-websocket"
 Source = "https://github.com/y-crdt/pycrdt-websocket"
 Issues = "https://github.com/y-crdt/pycrdt-websocket/issues"
 Pypi = "https://pypi.org/project/pycrdt-websocket"
-
-[tool.hatch.version]
-path = "src/pycrdt/websocket/__init__.py"
 
 [tool.hatch.build.targets.wheel]
 ignore-vcs = true

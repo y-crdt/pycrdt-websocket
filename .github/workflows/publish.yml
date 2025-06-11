@@ -36,3 +36,20 @@ jobs:
       uses: actions/download-artifact@v4
     - name: Upload packages
       uses: pypa/gh-action-pypi-publish@release/v1
+
+  github-release:
+      name: Create GitHub release
+      needs: pypi-publish
+      runs-on: ubuntu-latest
+      permissions:
+        contents: write
+      steps:
+      - uses: actions/checkout@v4
+      - id: changelog
+        uses: agronholm/release-notes@v1
+        with:
+          path: CHANGELOG.md
+          version_pattern: ^\#\# ([0-9][^*]*)\n
+      - uses: ncipollo/release-action@v1
+        with:
+          body: ${{ steps.changelog.outputs.changelog }}

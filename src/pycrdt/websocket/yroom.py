@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from collections.abc import Awaitable
+from collections.abc import Awaitable, Callable
 from contextlib import AsyncExitStack
 from functools import partial
 from inspect import isawaitable
 from logging import Logger, getLogger
-from typing import Any, Callable, Protocol
+from typing import Any, Protocol
 
 from anyio import (
     TASK_STATUS_IGNORED,

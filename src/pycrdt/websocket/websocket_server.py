@@ -1,9 +1,9 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from contextlib import AsyncExitStack
 from functools import partial
 from logging import Logger, getLogger
-from typing import Callable
 
 from anyio import TASK_STATUS_IGNORED, Event, Lock, create_task_group
 from anyio.abc import TaskGroup, TaskStatus

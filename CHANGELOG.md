@@ -1,5 +1,9 @@
 # Version history
 
+## 0.16.1
+
+- Bump `pycrdt` to `>=0.13.0,<0.14.0`.
+
 ## 0.16.0
 
 - Allow room to sync with provider.

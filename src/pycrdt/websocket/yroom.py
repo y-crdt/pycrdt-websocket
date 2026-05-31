@@ -52,6 +52,7 @@ class YRoom:
     ystore: BaseYStore | None
     ready_event: Event
     _on_message: Callable[[bytes], Awaitable[bool] | bool] | None
+    _on_message_error: Callable[[Exception, bytes, Channel], Awaitable[bool] | bool] | None
     _update_send_stream: MemoryObjectSendStream
     _update_receive_stream: MemoryObjectReceiveStream
     _task_group: TaskGroup | None = None
@@ -104,6 +105,7 @@ class YRoom:
         self.awareness.observe(self.send_server_awareness)
         self.clients = set()
         self._on_message = None
+        self._on_message_error = None
         self.exception_handler = exception_handler
         self._stopped = Event()
         self._provider_stop_event = Event()
@@ -157,6 +159,32 @@ class YRoom:
             If the callback returns True, the message is skipped.
         """
         self._on_message = value
+
+    @property
+    def on_message_error(
+        self,
+    ) -> Callable[[Exception, bytes, Channel], Awaitable[bool] | bool] | None:
+        """
+        Returns:
+            The optional callback to call when an exception is raised while processing
+            a sync message. The callback receives the exception, the raw message bytes,
+            and the channel. If it returns True the error is considered handled and
+            processing continues with the next message; otherwise the exception propagates.
+        """
+        return self._on_message_error
+
+    @on_message_error.setter
+    def on_message_error(
+        self,
+        value: Callable[[Exception, bytes, Channel], Awaitable[bool] | bool] | None,
+    ):
+        """
+        Arguments:
+            value: An optional callback to call when an exception is raised while
+            processing a sync message. If the callback returns True, the error is
+            handled and the message is skipped.
+        """
+        self._on_message_error = value
 
     async def _broadcast_updates(self):
         if self.ystore is not None:
@@ -311,7 +339,15 @@ class YRoom:
                             YSyncMessageType(message[1]).name,
                             channel.path,
                         )
-                        reply = handle_sync_message(message[1:], self.ydoc)
+                        try:
+                            reply = handle_sync_message(message[1:], self.ydoc)
+                        except Exception as exc:
+                            if self._on_message_error is not None:
+                                _handled = self._on_message_error(exc, message, channel)
+                                handled = await _handled if isawaitable(_handled) else _handled
+                                if handled:
+                                    continue
+                            raise
                         if reply is not None:
                             self.log.debug(
                                 "Sending %s message to endpoint: %s",

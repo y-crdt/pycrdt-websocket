@@ -1,5 +1,10 @@
 # Version history
 
+## 0.16.2
+
+- Add message error handler.
+- Add missing exception handler to `YRoom` instantiation in `get_room`.
+
 ## 0.16.1
 
 - Bump `pycrdt` to `>=0.13.0,<0.14.0`.

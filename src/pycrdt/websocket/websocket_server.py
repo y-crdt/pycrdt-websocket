@@ -92,7 +92,10 @@ class WebsocketServer:
                 else None
             )
             self.rooms[name] = YRoom(
-                ready=self.rooms_ready, log=self.log, provider_factory=provider_factory
+                ready=self.rooms_ready,
+                exception_handler=self.exception_handler,
+                log=self.log,
+                provider_factory=provider_factory,
             )
         room = self.rooms[name]
         await self.start_room(room)

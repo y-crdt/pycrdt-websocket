@@ -91,7 +91,10 @@ class YRoom:
             provider_factory: An optional provider factory used to synchronize the room with
                 an external document.
             exception_handler: An optional callback to call when an exception is raised, that
-                returns True if the exception was handled.
+                returns True if the exception was handled. Handling exceptions does not prevent
+                the room from stopping, but it prevents the exception from propagating.
+                Use on_message_error to handle exceptions raised while processing messages
+                without stopping the room.
             log: An optional logger.
             ydoc: An optional document for the room (a new one is created otherwise).
         """
@@ -167,7 +170,7 @@ class YRoom:
         """
         Returns:
             The optional callback to call when an exception is raised while processing
-            a sync message. The callback receives the exception, the raw message bytes,
+            a message. The callback receives the exception, the raw message bytes,
             and the channel. If it returns True the error is considered handled and
             processing continues with the next message; otherwise the exception propagates.
         """
@@ -181,7 +184,7 @@ class YRoom:
         """
         Arguments:
             value: An optional callback to call when an exception is raised while
-            processing a sync message. If the callback returns True, the error is
+            processing a message. If the callback returns True, the error is
             handled and the message is skipped.
         """
         self._on_message_error = value
@@ -382,7 +385,14 @@ class YRoom:
                             )
                             tg.start_soon(client.send, message)
                         # apply awareness update to the server's awareness
-                        self.awareness.apply_awareness_update(read_message(message[1:]), self)
+                        try:
+                            self.awareness.apply_awareness_update(read_message(message[1:]), self)
+                        except Exception as exc:
+                            if self._on_message_error is not None:
+                                _handled = self._on_message_error(exc, message, channel)
+                                handled = await _handled if isawaitable(_handled) else _handled
+                                if handled:
+                                    continue
         except Exception as exception:
             self._handle_exception(exception)
         finally:

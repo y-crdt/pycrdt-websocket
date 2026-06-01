@@ -325,74 +325,66 @@ class YRoom:
                 )
                 await channel.send(sync_message)
                 async for message in channel:
-                    # filter messages (e.g. awareness)
-                    skip = False
-                    if self.on_message:
-                        _skip = self.on_message(message)
-                        skip = await _skip if isawaitable(_skip) else _skip
-                    if skip:
-                        continue
-                    message_type = message[0]
-                    if message_type == YMessageType.SYNC:
-                        # update our internal state in the background
-                        # changes to the internal state are then forwarded to all clients
-                        # and stored in the YStore (if any)
-                        self.log.debug(
-                            "Received %s message from endpoint: %s",
-                            YSyncMessageType(message[1]).name,
-                            channel.path,
-                        )
-                        try:
+                    try:
+                        # filter messages (e.g. awareness)
+                        skip = False
+                        if self.on_message:
+                            _skip = self.on_message(message)
+                            skip = await _skip if isawaitable(_skip) else _skip
+                        if skip:
+                            continue
+                        message_type = message[0]
+                        if message_type == YMessageType.SYNC:
+                            # update our internal state in the background
+                            # changes to the internal state are then forwarded to all clients
+                            # and stored in the YStore (if any)
+                            self.log.debug(
+                                "Received %s message from endpoint: %s",
+                                YSyncMessageType(message[1]).name,
+                                channel.path,
+                            )
                             reply = handle_sync_message(message[1:], self.ydoc)
-                        except Exception as exc:
-                            if self._on_message_error is not None:
-                                _handled = self._on_message_error(exc, message, channel)
-                                handled = await _handled if isawaitable(_handled) else _handled
-                                if handled:
+                            if reply is not None:
+                                self.log.debug(
+                                    "Sending %s message to endpoint: %s",
+                                    YSyncMessageType.SYNC_STEP2.name,
+                                    channel.path,
+                                )
+                                tg.start_soon(channel.send, reply)
+                        elif message_type == YMessageType.AWARENESS:
+                            # forward awareness messages from this client to all clients,
+                            # including itself, because it's used to keep the connection alive
+                            self.log.debug(
+                                "Received %s message from endpoint: %s",
+                                YMessageType.AWARENESS.name,
+                                channel.path,
+                            )
+
+                            # Check if the message is a client  awareness disconnect.
+                            disconnection = is_awareness_disconnect_message(message[1:])
+
+                            # Propagate the message to all clients except itself if it is a
+                            # disconnection from the client. This avoid an error when trying
+                            # to send the message to the disconnected client.
+                            for client in self.clients:
+                                if disconnection and client == channel:
                                     continue
-                            raise
-                        if reply is not None:
-                            self.log.debug(
-                                "Sending %s message to endpoint: %s",
-                                YSyncMessageType.SYNC_STEP2.name,
-                                channel.path,
-                            )
-                            tg.start_soon(channel.send, reply)
-                    elif message_type == YMessageType.AWARENESS:
-                        # forward awareness messages from this client to all clients,
-                        # including itself, because it's used to keep the connection alive
-                        self.log.debug(
-                            "Received %s message from endpoint: %s",
-                            YMessageType.AWARENESS.name,
-                            channel.path,
-                        )
 
-                        # Check if the message is a client  awareness disconnect.
-                        disconnection = is_awareness_disconnect_message(message[1:])
-
-                        # Propagate the message to all clients except itself if it is a
-                        # disconnection from the client. This avoid an error when trying
-                        # to send the message to the disconnected client.
-                        for client in self.clients:
-                            if disconnection and client == channel:
-                                continue
-
-                            self.log.debug(
-                                "Sending Y awareness from client with endpoint "
-                                "%s to client with endpoint: %s",
-                                channel.path,
-                                client.path,
-                            )
-                            tg.start_soon(client.send, message)
-                        # apply awareness update to the server's awareness
-                        try:
+                                self.log.debug(
+                                    "Sending Y awareness from client with endpoint "
+                                    "%s to client with endpoint: %s",
+                                    channel.path,
+                                    client.path,
+                                )
+                                tg.start_soon(client.send, message)
+                            # apply awareness update to the server's awareness
                             self.awareness.apply_awareness_update(read_message(message[1:]), self)
-                        except Exception as exc:
-                            if self._on_message_error is not None:
-                                _handled = self._on_message_error(exc, message, channel)
-                                handled = await _handled if isawaitable(_handled) else _handled
-                                if handled:
-                                    continue
+                    except Exception as exc:
+                        if self._on_message_error is not None:
+                            _handled = self._on_message_error(exc, message, channel)
+                            handled = await _handled if isawaitable(_handled) else _handled
+                            if handled:
+                                continue
         except Exception as exception:
             self._handle_exception(exception)
         finally:

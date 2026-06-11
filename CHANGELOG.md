@@ -1,5 +1,10 @@
 # Version history
 
+## 0.16.3
+
+- Bump `pycrdt` to `>=0.14.0,<0.15.0`.
+- Bump `pycrdt-store` to `>=0.1.5,<0.2.0`.
+
 ## 0.16.2
 
 - Add message error handler.

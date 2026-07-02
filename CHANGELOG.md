@@ -1,5 +1,9 @@
 # Version history
 
+## 0.16.4
+
+- Add `ydoc_observed` event.
+
 ## 0.16.3
 
 - Bump `pycrdt` to `>=0.14.0,<0.15.0`.

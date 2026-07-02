@@ -100,6 +100,7 @@ class YRoom:
         """
         self.ydoc = Doc() if ydoc is None else ydoc
         self.ready_event = Event()
+        self.ydoc_observed = Event()
         self.ready = ready
         self.ystore = ystore
         self.provider_factory = provider_factory
@@ -145,6 +146,7 @@ class YRoom:
     async def _watch_ready(self):
         await self.ready_event.wait()
         self._subscription = self.ydoc.observe(partial(put_updates, self._update_send_stream))
+        self.ydoc_observed.set()
 
     @property
     def on_message(self) -> Callable[[bytes], Awaitable[bool] | bool] | None:

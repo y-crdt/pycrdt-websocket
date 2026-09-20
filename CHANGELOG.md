@@ -1,5 +1,9 @@
 # Version history
 
+## 0.16.5
+
+- Wait for `start()` to return in `WebsocketServer.stop()`.
+
 ## 0.16.4
 
 - Add `ydoc_observed` event.

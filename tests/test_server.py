@@ -1,9 +1,17 @@
 import pytest
-from anyio import fail_after, sleep
+from anyio import (
+    CancelScope,
+    Event,
+    create_task_group,
+    fail_after,
+    move_on_after,
+    sleep,
+    sleep_forever,
+)
 from utils import create_yws_provider, create_yws_server, get_unused_tcp_port
 
 from pycrdt import Text
-from pycrdt.websocket import exception_logger
+from pycrdt.websocket import WebsocketServer, exception_logger
 
 pytestmark = pytest.mark.anyio
 
@@ -58,3 +66,56 @@ async def test_server_provider():
                     break
 
     assert str(text2) == "Hello"
+
+
+async def test_stop_waits_for_start_to_return():
+    # A task that is slow to unwind, so that the moment `stop()` returns is
+    # observably distinct from the moment `start()` returns.
+    async def slow_to_cancel():
+        try:
+            await sleep_forever()
+        finally:
+            with CancelScope(shield=True):
+                await sleep(0.1)
+
+    server = WebsocketServer()
+    start_returned = Event()
+
+    async def run_server():
+        await server.start()
+        start_returned.set()
+
+    async with create_task_group() as tg:
+        tg.start_soon(run_server)
+        await server.started.wait()
+        server._task_group.start_soon(slow_to_cancel)
+        await sleep(0.1)
+        await server.stop()
+        assert start_returned.is_set()
+
+
+async def test_stop_can_be_bounded_by_the_caller():
+    # A task that cannot be cancelled, so that `stop()` has something to wait for.
+    # The caller must be able to give up on it rather than block forever.
+    async def never_cancels():
+        with CancelScope(shield=True):
+            await sleep(0.5)
+
+    server = WebsocketServer()
+
+    async with create_task_group() as tg:
+        tg.start_soon(server.start)
+        await server.started.wait()
+        server._task_group.start_soon(never_cancels)
+        await sleep(0.1)
+        with fail_after(0.3):
+            with move_on_after(0.1):
+                await server.stop()
+
+
+async def test_context_manager_stop_does_not_stall():
+    # The context manager awaits the task group itself on exit, so `stop()` has
+    # nothing to wait for and must not block on its way out.
+    with fail_after(1):
+        async with WebsocketServer():
+            pass

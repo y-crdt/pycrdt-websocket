@@ -20,6 +20,7 @@ class WebsocketServer:
     rooms: dict[str, YRoom]
     _started: Event | None = None
     _stopped: Event
+    _start_finished: Event
     _task_group: TaskGroup | None = None
     __start_lock: Lock | None = None
 
@@ -62,6 +63,7 @@ class WebsocketServer:
         self.provider_factory = provider_factory
         self.rooms = {}
         self._stopped = Event()
+        self._start_finished = Event()
 
     @property
     def started(self) -> Event:
@@ -69,6 +71,11 @@ class WebsocketServer:
         if self._started is None:
             self._started = Event()
         return self._started
+
+    @property
+    def running(self) -> bool:
+        """Whether the WebSocket server is running."""
+        return self._task_group is not None
 
     @property
     def _start_lock(self) -> Lock:
@@ -219,6 +226,9 @@ class WebsocketServer:
             task_status.started()
             self.started.set()
             assert self._task_group is not None
+            # the context manager awaits the task group on exit, so `stop()` has
+            # nothing to wait for
+            self._start_finished.set()
             # wait until stopped
             self._task_group.start_soon(self._stopped.wait)
             return
@@ -227,26 +237,41 @@ class WebsocketServer:
             if self._task_group is not None:
                 raise RuntimeError("WebsocketServer already running")
 
-            while True:
-                try:
-                    async with create_task_group() as self._task_group:
-                        if not self.started.is_set():
-                            task_status.started()
-                            self.started.set()
-                        # wait until stopped
-                        self._task_group.start_soon(self._stopped.wait)
-                    return
-                except Exception as exception:
-                    self._handle_exception(exception)
+            try:
+                while True:
+                    try:
+                        async with create_task_group() as self._task_group:
+                            if not self.started.is_set():
+                                task_status.started()
+                                self.started.set()
+                            # wait until stopped
+                            self._task_group.start_soon(self._stopped.wait)
+                        return
+                    except Exception as exception:
+                        self._handle_exception(exception)
+            finally:
+                self._start_finished.set()
 
     async def stop(self) -> None:
-        """Stop the WebSocket server."""
+        """Stop the WebSocket server.
+
+        When the server was started through the lower-level API, this waits for the task
+        running `start()` to return, so that the caller can rely on the server's tasks
+        being done when `stop()` returns. Wrap the call in `anyio.move_on_after()` to
+        bound that wait.
+        """
         if self._task_group is None:
             raise RuntimeError("WebsocketServer not running")
 
         self._stopped.set()
         self._task_group.cancel_scope.cancel()
         self._task_group = None
+        if self._start_finished.is_set():
+            # nothing to wait for: don't checkpoint, as we may be running inside the
+            # cancel scope we just cancelled (this is the case when used as an async
+            # context manager, which awaits the task group on exit anyway)
+            return
+        await self._start_finished.wait()
 
 
 def exception_logger(exception: Exception, log: Logger) -> bool:

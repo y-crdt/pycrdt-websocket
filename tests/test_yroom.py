@@ -1,9 +1,19 @@
 import pytest
 from anyio import TASK_STATUS_IGNORED, create_task_group, sleep
 from anyio.abc import TaskStatus
-from utils import Websocket
+from anyio.lowlevel import checkpoint
+from utils import Websocket, connected_websockets
 
-from pycrdt import Map
+from pycrdt import (
+    Doc,
+    Map,
+    Provider,
+    YMessageType,
+    YSyncMessageType,
+    create_sync_message,
+    create_update_message,
+    handle_sync_message,
+)
 from pycrdt.websocket import exception_logger
 from pycrdt.websocket.yroom import YRoom
 
@@ -32,6 +42,103 @@ async def test_yroom(yroom, yws_providers, websocket_provider_connect, room_name
 
         assert str(ymap2) == '{"key":"value"}'
         tg.cancel_scope.cancel()
+
+
+async def test_broadcast_not_sent_before_sync_completes(room_name):
+    """Regression test: a client must not receive broadcast updates before the
+    initial sync handshake finishes.
+
+    When a new client connects, YRoom.serve() previously added it to
+    self.clients immediately — before sending SYNC_STEP2. If the server-side
+    document was mutated concurrently (e.g. by an MCP tool call adding cells),
+    _broadcast_updates would send a SYNC_UPDATE to the un-synced client.
+    The client's yjs would then throw "Unexpected case" in findIndexSS
+    because the update referenced a struct the client didn't have yet.
+
+    This test reproduces the race by:
+    1. Creating a YRoom with existing data
+    2. Connecting a new client
+    3. Mutating the server-side doc before the client finishes syncing
+    4. Asserting the client receives all data without errors
+    """
+    room = YRoom()
+    async with room:
+        # Pre-populate the room's document with data (simulates an existing notebook).
+        room.ydoc["map"] = server_map = Map()
+        server_map["existing"] = "data"
+
+        # Set up a fake WebSocket pair for the new client.
+        server_ws, client_ws = connected_websockets()
+        ws = Websocket(server_ws, room_name)
+
+        # Client document that will sync with the room.
+        client_doc = Doc()
+
+        async with create_task_group() as tg:
+            # Start serving the new client (this begins the sync handshake).
+            tg.start_soon(room.serve, ws)
+
+            # Simulate rapid server-side mutations DURING the handshake.
+            # In production this is caused by MCP add_cell calls from the AI agent.
+            for i in range(20):
+                server_map[f"cell_{i}"] = f"content_{i}"
+
+            # Give the sync some time to propagate.
+            await sleep(0.5)
+
+            # Connect a Provider on the client side to process the sync messages.
+            client_ws_wrapper = Websocket(client_ws, room_name)
+            async with Provider(client_doc, client_ws_wrapper):
+                await sleep(0.5)
+
+            # Verify the client received all data — if the race exists,
+            # the client would have crashed on "Unexpected case" and the
+            # map would be incomplete or empty.
+            client_map = client_doc.get("map", type=Map)
+            assert client_map["existing"] == "data"
+            for i in range(20):
+                assert client_map[f"cell_{i}"] == f"content_{i}", (
+                    f"Client missing cell_{i} — broadcast likely sent before sync completed"
+                )
+
+            tg.cancel_scope.cancel()
+
+
+@pytest.mark.parametrize(
+    "first_message_type", [YSyncMessageType.SYNC_STEP2, YSyncMessageType.SYNC_UPDATE]
+)
+async def test_client_added_after_sync_reply(room_name, first_message_type):
+    room = YRoom()
+    client_doc = Doc()
+    reply_sent = False
+
+    class HandshakeChannel:
+        path = room_name
+
+        async def __aiter__(self):
+            if first_message_type == YSyncMessageType.SYNC_STEP2:
+                message = handle_sync_message(create_sync_message(room.ydoc)[1:], client_doc)
+                assert message is not None
+            else:
+                message = create_update_message(client_doc.get_update())
+            yield message
+            assert self not in room.clients
+            yield create_sync_message(client_doc)
+            assert reply_sent
+            assert self in room.clients
+
+        async def send(self, message):
+            nonlocal reply_sent
+            assert self not in room.clients
+            if message[:2] == bytes((YMessageType.SYNC, YSyncMessageType.SYNC_STEP2)):
+                await checkpoint()
+                assert self not in room.clients
+                reply_sent = True
+
+    channel = HandshakeChannel()
+    await room.serve(channel)
+    assert reply_sent
+    assert channel not in room.clients
 
 
 @pytest.mark.parametrize("websocket_server_api", ["websocket_server_start_stop"], indirect=True)

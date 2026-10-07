@@ -318,7 +318,7 @@ class YRoom:
         """
         try:
             async with create_task_group() as tg:
-                self.clients.add(channel)
+                # Send our state vector to the client (SYNC_STEP1).
                 sync_message = create_sync_message(self.ydoc)
                 self.log.debug(
                     "Sending %s message to endpoint: %s",
@@ -326,6 +326,13 @@ class YRoom:
                     channel.path,
                 )
                 await channel.send(sync_message)
+                # Do not add the client to the broadcast list until the initial
+                # sync handshake is complete. Otherwise, concurrent document
+                # mutations (e.g. from MCP tool calls) trigger _broadcast_updates
+                # to send SYNC_UPDATE messages to this client before it has
+                # received the SYNC_STEP2 reply, causing the client-side yjs to
+                # throw "Unexpected case" in findIndexSS because the update
+                # references a struct the client doesn't have yet.
                 async for message in channel:
                     try:
                         # filter messages (e.g. awareness)
@@ -352,7 +359,11 @@ class YRoom:
                                     YSyncMessageType.SYNC_STEP2.name,
                                     channel.path,
                                 )
-                                tg.start_soon(channel.send, reply)
+                                await channel.send(reply)
+                                # The first sync exchange is complete — the client
+                                # now has all the data it needs. Safe to add to the
+                                # broadcast list for incremental updates.
+                                self.clients.add(channel)
                         elif message_type == YMessageType.AWARENESS:
                             # forward awareness messages from this client to all clients,
                             # including itself, because it's used to keep the connection alive
@@ -390,8 +401,9 @@ class YRoom:
         except Exception as exception:
             self._handle_exception(exception)
         finally:
-            # remove this client
-            self.clients.remove(channel)
+            # remove this client (may not have been added if it disconnected
+            # before the sync handshake completed)
+            self.clients.discard(channel)
 
     def send_server_awareness(self, type: str, changes: tuple[dict[str, Any], Any]) -> None:
         """

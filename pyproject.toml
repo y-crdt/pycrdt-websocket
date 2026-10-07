@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pycrdt-websocket"
-version = "0.16.0"
+version = "0.16.5"
 description = "WebSocket connector for pycrdt"
 license = { file = "LICENSE" }
 readme = "README.md"
@@ -29,8 +29,8 @@ classifiers = [
 ]
 dependencies = [
     "anyio >=3.6.2,<5",
-    "pycrdt >=0.12.16,<0.13.0",
-    "pycrdt-store >=0.1.0,<0.2.0",
+    "pycrdt >=0.14.0,<0.15.0",
+    "pycrdt-store >=0.1.5,<0.2.0",
 ]
 
 [project.optional-dependencies]

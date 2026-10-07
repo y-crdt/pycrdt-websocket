@@ -1,9 +1,19 @@
 import pytest
 from anyio import TASK_STATUS_IGNORED, create_task_group, sleep
 from anyio.abc import TaskStatus
+from anyio.lowlevel import checkpoint
 from utils import Websocket, connected_websockets
 
-from pycrdt import Doc, Map, Provider
+from pycrdt import (
+    Doc,
+    Map,
+    Provider,
+    YMessageType,
+    YSyncMessageType,
+    create_sync_message,
+    create_update_message,
+    handle_sync_message,
+)
 from pycrdt.websocket import exception_logger
 from pycrdt.websocket.yroom import YRoom
 
@@ -92,6 +102,43 @@ async def test_broadcast_not_sent_before_sync_completes(room_name):
                 )
 
             tg.cancel_scope.cancel()
+
+
+@pytest.mark.parametrize(
+    "first_message_type", [YSyncMessageType.SYNC_STEP2, YSyncMessageType.SYNC_UPDATE]
+)
+async def test_client_added_after_sync_reply(room_name, first_message_type):
+    room = YRoom()
+    client_doc = Doc()
+    reply_sent = False
+
+    class HandshakeChannel:
+        path = room_name
+
+        async def __aiter__(self):
+            if first_message_type == YSyncMessageType.SYNC_STEP2:
+                message = handle_sync_message(create_sync_message(room.ydoc)[1:], client_doc)
+                assert message is not None
+            else:
+                message = create_update_message(client_doc.get_update())
+            yield message
+            assert self not in room.clients
+            yield create_sync_message(client_doc)
+            assert reply_sent
+            assert self in room.clients
+
+        async def send(self, message):
+            nonlocal reply_sent
+            assert self not in room.clients
+            if message[:2] == bytes((YMessageType.SYNC, YSyncMessageType.SYNC_STEP2)):
+                await checkpoint()
+                assert self not in room.clients
+                reply_sent = True
+
+    channel = HandshakeChannel()
+    await room.serve(channel)
+    assert reply_sent
+    assert channel not in room.clients
 
 
 @pytest.mark.parametrize("websocket_server_api", ["websocket_server_start_stop"], indirect=True)

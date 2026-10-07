@@ -1,5 +1,27 @@
 # Version history
 
+## 0.16.5
+
+- Wait for `start()` to return in `WebsocketServer.stop()`.
+
+## 0.16.4
+
+- Add `ydoc_observed` event.
+
+## 0.16.3
+
+- Bump `pycrdt` to `>=0.14.0,<0.15.0`.
+- Bump `pycrdt-store` to `>=0.1.5,<0.2.0`.
+
+## 0.16.2
+
+- Add message error handler.
+- Add missing exception handler to `YRoom` instantiation in `get_room`.
+
+## 0.16.1
+
+- Bump `pycrdt` to `>=0.13.0,<0.14.0`.
+
 ## 0.16.0
 
 - Allow room to sync with provider.

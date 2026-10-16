@@ -1,3 +1,9 @@
+import gc
+import platform
+import sys
+import weakref
+from threading import Thread
+
 import pytest
 from anyio import TASK_STATUS_IGNORED, create_task_group, sleep
 from anyio.abc import TaskStatus
@@ -56,3 +62,32 @@ async def test_yroom_restart(yws_server, yws_provider):
     assert yroom._task_group is not None
     assert not yroom._task_group.cancel_scope.cancel_called
     await yroom.stop()
+
+
+@pytest.mark.skipif(
+    platform.python_implementation() == "PyPy", reason="relies on reference counting"
+)
+async def test_yroom_garbage_collected_in_another_thread(monkeypatch):
+    # see https://github.com/y-crdt/pycrdt-websocket/issues/146
+    # collect other tests' garbage first, so that only this room's errors are recorded
+    gc.collect()
+    unraisable_exceptions = []
+    monkeypatch.setattr(
+        sys, "unraisablehook", lambda args: unraisable_exceptions.append(args.exc_value)
+    )
+    # keep the room from being collected in this thread
+    gc.disable()
+    try:
+        yroom = YRoom()
+        async with yroom:
+            await sleep(0.1)
+        yroom_ref = weakref.ref(yroom)
+        del yroom
+        # the stopped room can be freed by the garbage collector in any thread
+        thread = Thread(target=gc.collect)
+        thread.start()
+        thread.join()
+    finally:
+        gc.enable()
+    assert yroom_ref() is None
+    assert unraisable_exceptions == []

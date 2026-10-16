@@ -309,6 +309,9 @@ class YRoom:
         self._task_group = None
         if self._subscription is not None:
             self.ydoc.unobserve(self._subscription)
+            # drop it here: a subscription cannot be dropped in another thread,
+            # which would happen if the garbage collector frees the room there
+            self._subscription = None
 
     async def serve(self, channel: Channel):
         """Serve a client.

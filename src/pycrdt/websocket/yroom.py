@@ -413,13 +413,19 @@ class YRoom:
             self.log.error("Cannot broadcast server awareness: YRoom not started")
 
     async def _send_server_awareness(self, state: bytes) -> None:
+        async with create_task_group() as tg:
+            for client in self.clients:
+                self.log.debug(
+                    "Sending awareness from server to client with endpoint: %s",
+                    client.path,
+                )
+                tg.start_soon(self._send_server_awareness_to_client, client, state)
+
+    async def _send_server_awareness_to_client(self, client: Channel, state: bytes) -> None:
         try:
-            async with create_task_group() as tg:
-                for client in self.clients:
-                    self.log.debug(
-                        "Sending awareness from server to client with endpoint: %s",
-                        client.path,
-                    )
-                    tg.start_soon(client.send, state)
-        except Exception as e:
-            self.log.error("Error while broadcasting awareness changes: %s", e)
+            await client.send(state)
+        except Exception:
+            self.log.exception(
+                "Error while broadcasting awareness changes to client with endpoint: %s",
+                client.path,
+            )

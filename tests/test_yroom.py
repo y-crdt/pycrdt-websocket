@@ -1,6 +1,7 @@
 import pytest
 from anyio import TASK_STATUS_IGNORED, create_task_group, sleep
 from anyio.abc import TaskStatus
+from anyio.lowlevel import checkpoint
 from utils import Websocket
 
 from pycrdt import Map
@@ -56,3 +57,38 @@ async def test_yroom_restart(yws_server, yws_provider):
     assert yroom._task_group is not None
     assert not yroom._task_group.cancel_scope.cancel_called
     await yroom.stop()
+
+
+class FakeClient:
+    def __init__(self, path: str, error: Exception | None = None) -> None:
+        self.path = path
+        self.error = error
+        self.messages: list[bytes] = []
+
+    async def send(self, message: bytes) -> None:
+        if self.error is not None:
+            raise self.error
+        # Give failing sends an opportunity to interrupt this send.
+        await checkpoint()
+        self.messages.append(message)
+
+
+async def test_yroom_server_awareness_send_error(yroom, caplog):
+    client1 = FakeClient("client1", RuntimeError("foo"))
+    client2 = FakeClient("client2", ValueError("bar"))
+    client3 = FakeClient("client3")
+    yroom.clients.update({client1, client2, client3})
+    await yroom._send_server_awareness(b"awareness")
+
+    records = [record for record in caplog.records if record.levelname == "ERROR"]
+    assert len(records) == 2
+    errors = {
+        record.getMessage(): record.exc_info[1] if record.exc_info else None for record in records
+    }
+    message = "Error while broadcasting awareness changes to client with endpoint: {}"
+    assert errors == {
+        message.format("client1"): client1.error,
+        message.format("client2"): client2.error,
+    }
+    # the other clients still get the awareness update
+    assert client3.messages == [b"awareness"]

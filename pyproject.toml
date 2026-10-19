@@ -40,7 +40,7 @@ django = [
 
 [dependency-groups]
 test = [
-    "mypy !=1.10.0,!=1.10.1",  # see https://github.com/python/mypy/issues/17166
+    "mypy !=1.10.0,!=1.10.1; platform_python_implementation != 'PyPy'",  # see https://github.com/python/mypy/issues/17166
     "pre-commit",
     "pytest",
     "pytest-timeout",

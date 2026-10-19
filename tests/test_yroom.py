@@ -83,8 +83,7 @@ async def test_yroom_server_awareness_send_error(yroom, caplog):
     records = [record for record in caplog.records if record.levelname == "ERROR"]
     assert len(records) == 2
     errors = {
-        record.getMessage(): record.exc_info[1] if record.exc_info else None
-        for record in records
+        record.getMessage(): record.exc_info[1] if record.exc_info else None for record in records
     }
     message = "Error while broadcasting awareness changes to client with endpoint: {}"
     assert errors == {

@@ -60,6 +60,7 @@ class YRoom:
     _stopped: Event
     __start_lock: Lock | None = None
     _subscription: Subscription | None = None
+    _awareness_subscription: str | None = None
 
     def __init__(
         self,
@@ -106,7 +107,7 @@ class YRoom:
         self.provider_factory = provider_factory
         self.log = log or getLogger(__name__)
         self.awareness = Awareness(self.ydoc)
-        self.awareness.observe(self.send_server_awareness)
+        self._awareness_subscription = self.awareness.observe(self.send_server_awareness)
         self.clients = set()
         self._on_message = None
         self._on_message_error = None
@@ -309,6 +310,9 @@ class YRoom:
         self._task_group = None
         if self._subscription is not None:
             self.ydoc.unobserve(self._subscription)
+        # Break the YRoom -> Awareness -> bound method cycle
+        if self._awareness_subscription is not None:
+            self.awareness.unobserve(self._awareness_subscription)
 
     async def serve(self, channel: Channel):
         """Serve a client.

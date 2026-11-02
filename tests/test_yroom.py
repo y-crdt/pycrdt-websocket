@@ -1,8 +1,11 @@
+import gc
+import weakref
+
 import pytest
 from anyio import TASK_STATUS_IGNORED, create_task_group, sleep
 from anyio.abc import TaskStatus
 from anyio.lowlevel import checkpoint
-from utils import Websocket
+from utils import StartStopContextManager, Websocket
 
 from pycrdt import Map
 from pycrdt.websocket import exception_logger
@@ -92,3 +95,22 @@ async def test_yroom_server_awareness_send_error(yroom, caplog):
     }
     # the other clients still get the awareness update
     assert client3.messages == [b"awareness"]
+
+
+async def test_yroom_stop_releases_awareness_callback(yroom_api):
+    async def run_room():
+        room = YRoom()
+        room_ref = weakref.ref(room)
+        awareness = room.awareness
+        service = StartStopContextManager(room) if yroom_api == "yroom_start_stop" else room
+        async with service:
+            await room.ydoc_observed.wait()
+        return room_ref, awareness
+
+    room_ref, awareness = await run_room()
+    # Collect completed task cycles; PyPy may need a second collection.
+    gc.collect()
+    gc.collect()
+    # A registered bound callback would keep the stopped room alive through awareness.
+    assert room_ref() is None
+    assert awareness is not None

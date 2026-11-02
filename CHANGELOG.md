@@ -1,5 +1,11 @@
 # Version history
 
+## 0.16.6
+
+- Drop Python 3.10 and add Python 3.15.
+- Log each failed server awareness send with its tracaback.
+- Unobserve awareness callback in `YRoom.stop`.
+
 ## 0.16.5
 
 - Wait for `start()` to return in `WebsocketServer.stop()`.

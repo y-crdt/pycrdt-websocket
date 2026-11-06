@@ -97,16 +97,21 @@ async def test_yroom_server_awareness_send_error(yroom, caplog):
     assert client3.messages == [b"awareness"]
 
 
-async def test_yroom_update_send_error(yroom, caplog):
+async def test_yroom_update_send_error(yroom_api, caplog):
     client1 = FakeClient("client1", RuntimeError("foo"))
     client2 = FakeClient("client2")
-    yroom.clients.update({client1, client2})
-    await yroom.ydoc_observed.wait()
-    yroom.ydoc["map"] = ymap = Map()
-    ymap["key1"] = "value1"
-    await sleep(0.1)
-    ymap["key2"] = "value2"
-    await sleep(0.1)
+
+    # don't use the yroom fixture here, because if it fails, it may hang on the trio test
+    room = YRoom()
+    service = StartStopContextManager(room) if yroom_api == "yroom_start_stop" else room
+    async with service:
+        room.clients.update({client1, client2})
+        await room.ydoc_observed.wait()
+        room.ydoc["map"] = ymap = Map()
+        ymap["key1"] = "value1"
+        await sleep(0.1)
+        ymap["key2"] = "value2"
+        await sleep(0.1)
 
     errors = [
         (record.getMessage(), record.exc_info[1] if record.exc_info else None)

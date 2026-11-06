@@ -113,6 +113,22 @@ async def test_stop_can_be_bounded_by_the_caller():
                 await server.stop()
 
 
+async def test_concurrent_get_room_starts_room_once():
+    async with WebsocketServer() as server:
+        rooms = []
+
+        async def get_room():
+            rooms.append(await server.get_room("/room"))
+
+        with fail_after(1):
+            async with create_task_group() as tg:
+                tg.start_soon(get_room)
+                tg.start_soon(get_room)
+
+        assert len(rooms) == 2
+        assert rooms[0] is rooms[1]
+
+
 async def test_context_manager_stop_does_not_stall():
     # The context manager awaits the task group itself on exit, so `stop()` has
     # nothing to wait for and must not block on its way out.

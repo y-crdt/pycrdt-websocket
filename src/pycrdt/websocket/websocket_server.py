@@ -21,6 +21,7 @@ class WebsocketServer:
     _started: Event | None = None
     _stopped: Event
     _start_finished: Event
+    _start_room_lock: Lock
     _task_group: TaskGroup | None = None
     __start_lock: Lock | None = None
 
@@ -64,6 +65,7 @@ class WebsocketServer:
         self.rooms = {}
         self._stopped = Event()
         self._start_finished = Event()
+        self._start_room_lock = Lock()
 
     @property
     def started(self) -> Event:
@@ -120,8 +122,9 @@ class WebsocketServer:
                 "`await websocket_server.start()`"
             )
 
-        if not room.started.is_set():
-            await self._task_group.start(room.start)
+        async with self._start_room_lock:
+            if not room.started.is_set():
+                await self._task_group.start(room.start)
 
     def get_room_name(self, room: YRoom) -> str:
         """Get the name of a room.

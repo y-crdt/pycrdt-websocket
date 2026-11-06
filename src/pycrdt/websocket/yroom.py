@@ -209,13 +209,8 @@ class YRoom:
                 if self.clients:
                     message = create_update_message(update)
                     for client in self.clients:
-                        try:
-                            self.log.debug(
-                                "Sending Y update to client with endpoint: %s", client.path
-                            )
-                            self._task_group.start_soon(client.send, message)
-                        except Exception as exception:
-                            self._handle_exception(exception)
+                        self.log.debug("Sending Y update to client with endpoint: %s", client.path)
+                        self._task_group.start_soon(self._send_to_client, client, message)
                 if self.ystore:
                     try:
                         self._task_group.start_soon(self.ystore.write, update)
@@ -384,7 +379,7 @@ class YRoom:
                                     channel.path,
                                     client.path,
                                 )
-                                tg.start_soon(client.send, message)
+                                tg.start_soon(self._send_to_client, client, message)
                             # apply awareness update to the server's awareness
                             self.awareness.apply_awareness_update(read_message(message[1:]), self)
                     except Exception as exc:
@@ -434,4 +429,13 @@ class YRoom:
             self.log.exception(
                 "Error while broadcasting awareness changes to client with endpoint: %s",
                 client.path,
+            )
+
+    async def _send_to_client(self, client: Channel, message: bytes) -> None:
+        # a client that fails, e.g. because it disconnected, must not affect the other clients
+        try:
+            await client.send(message)
+        except Exception:
+            self.log.exception(
+                "Error while sending message to client with endpoint: %s", client.path
             )

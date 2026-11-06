@@ -51,6 +51,7 @@ class YRoom:
     ydoc: Doc
     ystore: BaseYStore | None
     ready_event: Event
+    _start_room_lock: Lock
     _on_message: Callable[[bytes], Awaitable[bool] | bool] | None
     _on_message_error: Callable[[Exception, bytes, Channel], Awaitable[bool] | bool] | None
     _update_send_stream: MemoryObjectSendStream
@@ -113,6 +114,7 @@ class YRoom:
         self._on_message_error = None
         self.exception_handler = exception_handler
         self._stopped = Event()
+        self._start_room_lock = Lock()
         self._provider_stop_event = Event()
 
     @property

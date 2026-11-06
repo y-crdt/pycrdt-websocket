@@ -1,5 +1,9 @@
 # Version history
 
+## 0.16.7
+
+- Fix concurrent clients joining the same room.
+
 ## 0.16.6
 
 - Drop Python 3.10 and add Python 3.15.

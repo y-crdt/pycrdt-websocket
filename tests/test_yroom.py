@@ -2,7 +2,7 @@ import gc
 import weakref
 
 import pytest
-from anyio import TASK_STATUS_IGNORED, create_task_group, sleep
+from anyio import TASK_STATUS_IGNORED, Event, create_task_group, fail_after, sleep
 from anyio.abc import TaskStatus
 from anyio.lowlevel import checkpoint
 from utils import StartStopContextManager, Websocket, connected_websockets
@@ -67,13 +67,22 @@ class FakeClient:
         self.path = path
         self.error = error
         self.messages: list[bytes] = []
+        self.send_finished = Event()
 
     async def send(self, message: bytes) -> None:
-        if self.error is not None:
-            raise self.error
-        # Give failing sends an opportunity to interrupt this send.
-        await checkpoint()
-        self.messages.append(message)
+        try:
+            if self.error is not None:
+                raise self.error
+            # Give failing sends an opportunity to interrupt this send.
+            await checkpoint()
+            self.messages.append(message)
+        finally:
+            self.send_finished.set()
+
+    async def wait_for_send(self) -> None:
+        with fail_after(5):
+            await self.send_finished.wait()
+        self.send_finished = Event()
 
 
 async def test_yroom_server_awareness_send_error(yroom, caplog):
@@ -109,9 +118,11 @@ async def test_yroom_update_send_error(yroom_api, caplog):
         await room.ydoc_observed.wait()
         room.ydoc["map"] = ymap = Map()
         ymap["key1"] = "value1"
-        await sleep(0.1)
+        await client1.wait_for_send()
+        await client2.wait_for_send()
         ymap["key2"] = "value2"
-        await sleep(0.1)
+        await client1.wait_for_send()
+        await client2.wait_for_send()
 
     errors = [
         (record.getMessage(), record.exc_info[1] if record.exc_info else None)
@@ -138,7 +149,8 @@ async def test_yroom_client_awareness_send_error(yroom, caplog):
     async with create_task_group() as tg:
         tg.start_soon(yroom.serve, sender)
         await client_websocket.send_bytes(message)
-        await sleep(0.1)
+        await client1.wait_for_send()
+        await client2.wait_for_send()
 
         errors = [
             (record.getMessage(), record.exc_info[1] if record.exc_info else None)

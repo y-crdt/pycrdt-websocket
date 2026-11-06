@@ -1,5 +1,9 @@
 # Version history
 
+## 0.16.8
+
+- Fix send task exception handling.
+
 ## 0.16.7
 
 - Fix concurrent clients joining the same room.

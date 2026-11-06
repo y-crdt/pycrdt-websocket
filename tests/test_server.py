@@ -11,7 +11,7 @@ from anyio import (
 from utils import create_yws_provider, create_yws_server, get_unused_tcp_port
 
 from pycrdt import Text
-from pycrdt.websocket import WebsocketServer, exception_logger
+from pycrdt.websocket import WebsocketServer, YRoom, exception_logger
 
 pytestmark = pytest.mark.anyio
 
@@ -111,6 +111,48 @@ async def test_stop_can_be_bounded_by_the_caller():
         with fail_after(0.3):
             with move_on_after(0.1):
                 await server.stop()
+
+
+async def test_concurrent_get_room_starts_room_once():
+    async with WebsocketServer() as server:
+        rooms = []
+
+        async def get_room():
+            rooms.append(await server.get_room("/room"))
+
+        with fail_after(1):
+            async with create_task_group() as tg:
+                tg.start_soon(get_room)
+                tg.start_soon(get_room)
+
+        assert len(rooms) == 2
+        assert rooms[0] is rooms[1]
+
+
+async def test_room_startup_does_not_block_other_rooms():
+    startup_entered = Event()
+    allow_startup = Event()
+
+    class SlowRoom(YRoom):
+        async def start(self, *, task_status):
+            startup_entered.set()
+            await allow_startup.wait()
+            await super().start(task_status=task_status)
+
+    with fail_after(1):
+        async with WebsocketServer() as server:
+            slow_room = SlowRoom()
+            server.rooms["/slow"] = slow_room
+
+            async with create_task_group() as tg:
+                tg.start_soon(server.get_room, "/slow")
+                await startup_entered.wait()
+
+                other_room = await server.get_room("/other")
+                assert other_room.started.is_set()
+                assert not slow_room.started.is_set()
+
+                allow_startup.set()
 
 
 async def test_context_manager_stop_does_not_stall():

@@ -120,8 +120,9 @@ class WebsocketServer:
                 "`await websocket_server.start()`"
             )
 
-        if not room.started.is_set():
-            await self._task_group.start(room.start)
+        async with room._start_room_lock:
+            if not room.started.is_set():
+                await self._task_group.start(room.start)
 
     def get_room_name(self, room: YRoom) -> str:
         """Get the name of a room.

@@ -1,5 +1,10 @@
 # Version history
 
+## 0.16.9
+
+- Clean up empty rooms when serving a client fails, preventing retained documents and tasks.
+- Ensure rooms are initialized before reporting that they have started.
+
 ## 0.16.8
 
 - Fix send task exception handling.

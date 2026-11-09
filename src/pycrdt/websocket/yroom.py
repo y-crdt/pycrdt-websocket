@@ -16,7 +16,6 @@ from anyio import (
 )
 from anyio.abc import TaskGroup, TaskStatus
 from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
-from pycrdt.store import BaseYStore
 
 from pycrdt import (
     Awareness,
@@ -33,6 +32,7 @@ from pycrdt import (
     is_awareness_disconnect_message,
     read_message,
 )
+from pycrdt.store import BaseYStore
 
 from .yutils import put_updates
 

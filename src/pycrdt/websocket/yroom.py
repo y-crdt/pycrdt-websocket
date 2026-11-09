@@ -16,6 +16,7 @@ from anyio import (
 )
 from anyio.abc import TaskGroup, TaskStatus
 from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
+from pycrdt.store import BaseYStore
 
 from pycrdt import (
     Awareness,
@@ -32,7 +33,6 @@ from pycrdt import (
     is_awareness_disconnect_message,
     read_message,
 )
-from pycrdt.store import BaseYStore
 
 from .yutils import put_updates
 
@@ -275,9 +275,6 @@ class YRoom:
         self,
         task_status: TaskStatus[None],
     ):
-        if not self.started.is_set():
-            task_status.started()
-            self.started.set()
         self._update_send_stream, self._update_receive_stream = create_memory_object_stream(
             max_buffer_size=65536
         )
@@ -287,6 +284,11 @@ class YRoom:
         self._task_group.start_soon(self._broadcast_updates)
         await self._task_group.start(self.awareness.start)
         self._task_group.start_soon(self._run_provider)
+
+        # only once the room runs, so that it can be served and stopped right away
+        if not self.started.is_set():
+            task_status.started()
+            self.started.set()
 
     async def _run_provider(self):
         if self.provider_factory is not None:
@@ -432,7 +434,8 @@ class YRoom:
             )
 
     async def _send_to_client(self, client: Channel, message: bytes) -> None:
-        # a client that fails, e.g. because it disconnected, must not affect the other clients
+        # A failed broadcast must not affect the room or the other clients. Sends required
+        # for a client's own sync session propagate errors so that its session can end.
         try:
             await client.send(message)
         except Exception:

@@ -10,7 +10,7 @@ from anyio import (
 )
 from utils import create_yws_provider, create_yws_server, get_unused_tcp_port
 
-from pycrdt import Text
+from pycrdt import Doc, Text, create_sync_message
 from pycrdt.websocket import WebsocketServer, YRoom, exception_logger
 
 pytestmark = pytest.mark.anyio
@@ -161,3 +161,123 @@ async def test_context_manager_stop_does_not_stall():
     with fail_after(1):
         async with WebsocketServer():
             pass
+
+
+class FakeChannel:
+    def __init__(
+        self,
+        path: str,
+        messages: list[bytes],
+        send_error: Exception | None = None,
+        receive_error: Exception | None = None,
+    ) -> None:
+        self.path = path
+        self.messages = messages
+        self.send_error = send_error
+        self.receive_error = receive_error
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self) -> bytes:
+        if self.messages:
+            return self.messages.pop(0)
+        if self.receive_error is not None:
+            raise self.receive_error
+        # the client disconnected
+        raise StopAsyncIteration
+
+    async def send(self, message: bytes) -> None:
+        if self.send_error is not None:
+            raise self.send_error
+
+
+async def test_server_deletes_room_after_error():
+    # ASGIWebsocket raises KeyError when the client sends a text frame
+    channel = FakeChannel("/room", [], receive_error=KeyError("bytes"))
+    async with WebsocketServer() as server:
+        with pytest.raises(ExceptionGroup) as excinfo:
+            await server.serve(channel)
+
+        assert excinfo.group_contains(KeyError)
+        assert server.rooms == {}
+
+
+@pytest.mark.parametrize("fail_on_send", [1, 2], ids=["handshake", "sync_reply"])
+async def test_server_client_send_error(fail_on_send):
+    error = RuntimeError("foo")
+
+    class FailingChannel(FakeChannel):
+        sends = 0
+
+        async def send(self, message: bytes) -> None:
+            self.sends += 1
+            if self.sends == fail_on_send:
+                raise error
+
+        async def __anext__(self) -> bytes:
+            # A send failure need not be followed by a receive-side disconnect.
+            if not self.messages:
+                await sleep_forever()
+            return self.messages.pop(0)
+
+    channel = FailingChannel("/room", [create_sync_message(Doc())])
+    async with WebsocketServer() as server:
+        room = await server.get_room(channel.path)
+        with fail_after(5):
+            with pytest.raises(ExceptionGroup) as excinfo:
+                await server.serve(channel)
+
+        assert excinfo.group_contains(RuntimeError, match="foo")
+        assert channel.sends == fail_on_send
+        assert not room.clients
+        assert server.rooms == {}
+        assert room._task_group is None
+
+
+class IdleChannel:
+    """A client that stays connected until it leaves."""
+
+    def __init__(self, path: str) -> None:
+        self.path = path
+        self.served = Event()
+        self.left = Event()
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self) -> bytes:
+        await self.left.wait()
+        # the client disconnected
+        raise StopAsyncIteration
+
+    async def send(self, message: bytes) -> None:
+        # the room starts serving a client by sending it SYNC_STEP1
+        self.served.set()
+
+    async def wait_until_served(self) -> None:
+        with fail_after(5):
+            await self.served.wait()
+
+
+async def test_client_joins_room_as_its_last_client_leaves():
+    client1 = IdleChannel("/room")
+    client2 = IdleChannel("/room")
+    client3 = IdleChannel("/room")
+    async with WebsocketServer() as server:
+        async with create_task_group() as tg:
+            tg.start_soon(server.serve, client1)
+            await client1.wait_until_served()
+            # client2 joins the room as client1, its only client, leaves it
+            tg.start_soon(server.serve, client2)
+            client1.left.set()
+            await client2.wait_until_served()
+            tg.start_soon(server.serve, client3)
+            await client3.wait_until_served()
+
+            # client2 isn't left alone in a deleted room, apart from the clients joining after it
+            assert server.rooms["/room"].clients == {client2, client3}
+            client2.left.set()
+            client3.left.set()
+
+        assert server.rooms == {}

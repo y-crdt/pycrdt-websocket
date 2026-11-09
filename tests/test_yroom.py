@@ -183,3 +183,10 @@ async def test_yroom_stop_releases_awareness_callback(yroom_api):
     # A registered bound callback would keep the stopped room alive through awareness.
     assert room_ref() is None
     assert awareness is not None
+
+
+async def test_yroom_stops_right_after_starting():
+    room = YRoom()
+    async with create_task_group() as tg:
+        await tg.start(room.start)
+        await room.stop()

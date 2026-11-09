@@ -1,9 +1,43 @@
 import pytest
-from anyio import sleep
+from anyio import fail_after, sleep
 
 from pycrdt import Map
+from pycrdt.websocket import ASGIServer, WebsocketServer, YRoom
 
 pytestmark = pytest.mark.anyio
+
+
+async def test_asgi_deletes_room_after_text_frame():
+    events = iter(
+        [
+            {"type": "websocket.connect"},
+            # Uvicorn omits the bytes key for text frames, as permitted by ASGI.
+            {"type": "websocket.receive", "text": "hello"},
+        ]
+    )
+    sent: list[dict] = []
+    rooms: list[YRoom] = []
+
+    async def receive():
+        return next(events)
+
+    async def send(message):
+        sent.append(message)
+        if message["type"] == "websocket.send":
+            rooms.append(server.rooms["/room"])
+
+    async with WebsocketServer() as server:
+        app = ASGIServer(server)
+        with fail_after(5):
+            with pytest.raises(ExceptionGroup) as excinfo:
+                await app({"type": "websocket", "path": "/room"}, receive, send)
+
+        assert excinfo.group_contains(KeyError, match="bytes")
+        assert sent[0] == {"type": "websocket.accept"}
+        assert len(rooms) == 1  # The room sent its initial binary sync message.
+        assert not rooms[0].clients
+        assert rooms[0]._task_group is None
+        assert server.rooms == {}
 
 
 @pytest.mark.parametrize("yws_server", [{"auto_clean_rooms": False}], indirect=True)
